@@ -1,0 +1,63 @@
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_len;
+    char buffer[1024];
+
+    // Create socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Socket creation failed");
+        return 1;
+    }
+
+    // Server addresssyntax 
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(8080);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    // Bind socket
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return 1;
+    }
+
+    // Listen
+    listen(server_fd, 1);
+    printf("Server listening...\n");
+
+    addr_len = sizeof(client_addr);
+
+    // Accept client
+    client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
+    if (client_fd < 0) {
+        perror("Accept failed");
+        return 1;
+    }
+
+    // Receive string
+    read(client_fd, buffer, sizeof(buffer));
+    printf("Received from client: %s\n", buffer);
+
+    // Reverse the string
+    int len = strlen(buffer);
+    for (int i = 0; i < len / 2; i++) {
+        char temp = buffer[i];
+        buffer[i] = buffer[len - i - 1];
+        buffer[len - i - 1] = temp;
+    }
+
+    // Send reversed string
+    write(client_fd, buffer, strlen(buffer));
+
+    // Close sockets
+    close(client_fd);
+    close(server_fd);
+
+    return 0;
+}
