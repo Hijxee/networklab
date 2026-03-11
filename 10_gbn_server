@@ -1,0 +1,62 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#define PORT 8080
+#define WINDOW_SIZE 4
+int main(){
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    int addr_len = sizeof(client_addr);
+    int total_frames;
+    int next_frame = 0;
+    int corrupted_frame = -1;
+    int lost_list[20];
+    int num_lost;
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    bind(server_fd,(struct sockaddr*)&server_addr,sizeof(server_addr));
+    listen(server_fd,5);
+    printf("Waiting for client...\n");
+    client_fd = accept(server_fd,(struct sockaddr*)&client_addr,&addr_len);
+    recv(client_fd,&total_frames,sizeof(total_frames),0);
+    printf("Enter number of corrupted frames: ");
+    scanf("%d",&num_lost);
+    for(int i=0;i<num_lost;i++){
+        printf("Enter corrupted frame index: ");
+        scanf("%d",&lost_list[i]);
+    }
+    while(next_frame < total_frames){
+        int remaining_frames =((next_frame + WINDOW_SIZE) < total_frames) ? WINDOW_SIZE : total_frames - next_frame;
+        for(int i=0;i<remaining_frames;i++){
+            int recv_frame;
+            recv(client_fd,&recv_frame,sizeof(recv_frame),0);
+            printf("Received frame %d\n",recv_frame);
+            for(int j=0;j<num_lost;j++){
+                if(recv_frame == lost_list[j] && corrupted_frame==-1){
+                    corrupted_frame = recv_frame;
+                    printf("Corrupted frame %d\n",corrupted_frame);
+                }
+            }
+        }
+        if(corrupted_frame != -1){
+            next_frame = corrupted_frame;
+
+            for(int j=0;j<num_lost;j++){
+                if(lost_list[j]==corrupted_frame)
+                    lost_list[j] = -1;
+            }
+            corrupted_frame = -1;
+        }
+        else{
+            next_frame += remaining_frames;
+        }
+        send(client_fd,&next_frame,sizeof(next_frame),0);
+        printf("Sent ACK %d\n",next_frame);
+    }
+    close(client_fd);
+    close(server_fd);
+    return 0;
+}
